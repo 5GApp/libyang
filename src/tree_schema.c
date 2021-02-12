@@ -214,12 +214,12 @@ lys_getnext_into_case(const struct lysc_node_case *first_case, const struct lysc
 }
 
 API const struct lysc_node *
-lys_getnext(const struct lysc_node *last, const struct lysc_node *parent, const struct lysc_module *module, uint32_t options)
+lys_getnext2(const struct lysc_node *last, const struct lysc_node *parent, const struct lysc_node *start, uint32_t options)
 {
     const struct lysc_node *next = NULL;
     ly_bool action_flag = 0, notif_flag = 0;
 
-    LY_CHECK_ARG_RET(NULL, parent || module, NULL);
+    LY_CHECK_ARG_RET(NULL, parent || start, NULL);
 
 next:
     if (!last) {
@@ -231,7 +231,7 @@ next:
             next = last = lysc_node_child(parent);
         } else {
             /* top level data */
-            next = last = module->data;
+            next = last = start;
         }
         if (!next) {
             /* try to get action or notification */
@@ -256,12 +256,12 @@ repeat:
         if (last && (last->parent != parent)) {
             last = last->parent;
             goto next;
-        } else if (!action_flag) {
+        } else if (parent && !action_flag) {
             action_flag = 1;
-            next = parent ? (struct lysc_node *)lysc_node_actions(parent) : (struct lysc_node *)module->rpcs;
-        } else if (!notif_flag) {
+            next = (struct lysc_node *)lysc_node_actions(parent);
+        } else if (parent && !notif_flag) {
             notif_flag = 1;
-            next = parent ? (struct lysc_node *)lysc_node_notifs(parent) : (struct lysc_node *)module->notifs;
+            next = (struct lysc_node *)lysc_node_notifs(parent);
         } else {
             return NULL;
         }
@@ -332,9 +332,54 @@ check:
         goto repeat;
     default:
         /* we should not be here */
-        LOGINT(module ? module->mod->ctx : parent->module->ctx);
+        LOGINT(start ? start->module->ctx : parent->module->ctx);
         return NULL;
     }
+
+    return next;
+}
+
+API const struct lysc_node *
+lys_getnext(const struct lysc_node *last, const struct lysc_node *parent, const struct lysc_module *module, uint32_t options)
+{
+    const struct lysc_node *next, *start = NULL;
+    ly_bool action_flag = 0, notif_flag = 0;
+
+    LY_CHECK_ARG_RET(NULL, parent || module, NULL);
+
+    if (parent) {
+        return lys_getnext2(last, parent, NULL, options);
+    }
+
+    /* set flags */
+    if (last) {
+        if (last->nodetype & (LYS_RPC | LYS_ACTION)) {
+            action_flag = 1;
+        } else if (last->nodetype == LYS_NOTIF) {
+            action_flag = notif_flag = 1;
+        }
+        start = next = last;
+    } else {
+        start = next = module->data;
+    }
+
+    /* top level - cover divided data, RPCs and notifs */
+    do {
+        while (!start || !next) {
+            last = NULL;
+            if (!action_flag) {
+                action_flag = 1;
+                start = next = (struct lysc_node *)module->rpcs;
+            } else if (!notif_flag) {
+                notif_flag = 1;
+                start = next = (struct lysc_node *)module->notifs;
+            } else {
+                return NULL;
+            }
+        }
+
+        next = lys_getnext2(last, parent, start, options);
+    } while (!next);
 
     return next;
 }

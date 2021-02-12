@@ -2308,9 +2308,37 @@ const struct lysc_node *lys_getnext(const struct lysc_node *last, const struct l
         const struct lysc_module *module, uint32_t options);
 
 /**
- * @defgroup sgetnextflags Options for ::lys_getnext().
+ * @brief Get next schema tree (sibling) node element that can be instantiated in a data tree. Returned node can
+ * be from an augment.
  *
- * Various options setting behavior of ::lys_getnext().
+ * ::lys_getnext2() is supposed to be called sequentially. In the first call, the \p last parameter is usually NULL
+ * and function starts returning i) the first \p parent's child or ii) the @p start element.
+ * Consequent calls suppose to provide the previously returned node as the \p last parameter and still the same
+ * \p parent and \p start parameters.
+ *
+ * Note that while processing the @p parent's child nodes include also its actions and notifications, when starting
+ * without the @p parent (top level) node, only the nodes following the provided @p start are processed. Thus, when
+ * processing module, use ::lys_getnext() to process its data, RPCs and notifications. In contrast, ::lys_getnext2()
+ * provides enough flexibility for traversing schema nodes in YANG extensions such as yang-data.
+ *
+ * Without options, the function is used to traverse only the schema nodes that can be paired with corresponding
+ * data nodes in a data tree. By setting some \p options the behavior can be modified to the extent that
+ * all the schema nodes are iteratively returned.
+ *
+ * @param[in] last Previously returned schema tree node, or NULL in case of the first call.
+ * @param[in] parent Parent of the subtree where the function starts processing.
+ * @param[in] start The first node to process - the \p parent must be NULL to take @p start into account. But at least one
+ * of @p parent and @p start parameters must be specified.
+ * @param[in] options [ORed options](@ref sgetnextflags).
+ * @return Next schema tree node that can be instantiated in a data tree, NULL in case there is no such element.
+ */
+const struct lysc_node *lys_getnext2(const struct lysc_node *last, const struct lysc_node *parent,
+        const struct lysc_node *start, uint32_t options);
+
+/**
+ * @defgroup sgetnextflags Options for ::lys_getnext() and ::lys_getnext2().
+ *
+ * Various options setting behavior of ::lys_getnext() and ::lys_getnext2().
  *
  * @{
  */
